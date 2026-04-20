@@ -1,0 +1,7 @@
+vizdoom
+gymnasium
+shimmy[gymnasium]
+stable-baselines3[extra]
+sb3-contrib
+torch
+opencv-python
