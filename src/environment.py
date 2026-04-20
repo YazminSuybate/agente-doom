@@ -14,6 +14,7 @@ class DoomEnv(gym.Env):
         self.observation_space = gym.spaces.Box(low=0, high=255, shape=(1, 84, 84), dtype=np.uint8)
 
     def step(self, action):
+        action = int(np.asarray(action).item())
         actions = [0] * self.game.get_available_buttons_size()
         actions[action] = 1
         

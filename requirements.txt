@@ -1,7 +1,9 @@
 vizdoom
 gymnasium
-shimmy[gymnasium]
-stable-baselines3[extra]
+shimmy
+stable-baselines3
 sb3-contrib
 torch
 opencv-python
+tensorboard
+moviepy
