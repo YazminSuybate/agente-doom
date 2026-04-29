@@ -158,7 +158,7 @@ def make_vectorized_env(profile: TrainingProfile, project_paths: ProjectPaths) -
             observation_width=profile.screen_width,
             observation_height=profile.screen_height,
             action_space_kind=profile.action_space_kind,
-            render_mode="human" if profile.render else "rgb_array",
+            render_mode="rgb_array",
             reward_shaper=RewardShaper(profile.reward_shaping),
         )
 
