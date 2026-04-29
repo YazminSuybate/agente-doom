@@ -1,6 +1,12 @@
 .venv/
 __pycache__/
 *.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+artifacts/
+logs/
 data/videos/
-data/logs/
+_vizdoom.ini
 .DS_Store

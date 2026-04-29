@@ -1,0 +1,136 @@
+[defaults]
+scenario_key = "basic"
+learning_rate = 0.0001
+n_steps = 2048
+batch_size = 64
+n_epochs = 10
+gamma = 0.99
+gae_lambda = 0.95
+ent_coef = 0.01
+requested_timesteps = 500000
+render = true
+record_video = true
+checkpoint_name = "ppo_doom_recurrent"
+tensorboard_run_name = "PPO_LSTM_Doom"
+checkpoint_frequency = 50000
+video_record_frequency = 100000
+video_length = 2000
+frame_stack = 4
+screen_width = 84
+screen_height = 84
+seed = 42
+action_space_kind = "multidiscrete"
+
+[defaults.reward_shaping]
+scale = 1.0
+offset = 0.0
+
+[defaults.early_stopping]
+enabled = false
+patience_evaluations = 3
+min_evaluations = 2
+min_delta = 0.0
+
+[profiles.default]
+scenario_key = "basic"
+
+[profiles.fast]
+scenario_key = "basic"
+n_steps = 256
+n_epochs = 3
+requested_timesteps = 10000
+render = false
+record_video = false
+checkpoint_name = "ppo_doom_recurrent_fast"
+tensorboard_run_name = "PPO_LSTM_Doom_Fast"
+checkpoint_frequency = 2000
+video_record_frequency = 2000
+video_length = 1000
+
+[profiles.efficient]
+scenario_key = "basic"
+n_steps = 1024
+n_epochs = 5
+requested_timesteps = 100000
+render = false
+record_video = false
+checkpoint_name = "ppo_doom_recurrent_efficient"
+tensorboard_run_name = "PPO_LSTM_Doom_Efficient"
+checkpoint_frequency = 10000
+video_record_frequency = 10000
+video_length = 1500
+
+[profiles.curriculum_fast]
+scenario_key = "basic"
+n_steps = 256
+n_epochs = 3
+requested_timesteps = 2048
+render = false
+record_video = false
+checkpoint_name = "ppo_doom_recurrent_curriculum_fast"
+tensorboard_run_name = "PPO_LSTM_Doom_Curriculum_Fast"
+checkpoint_frequency = 1024
+video_record_frequency = 1024
+video_length = 750
+
+[profiles.curriculum_fast.early_stopping]
+enabled = true
+patience_evaluations = 2
+min_evaluations = 2
+min_delta = 0.0
+
+[[profiles.curriculum_fast.curriculum]]
+scenario_key = "basic"
+requested_timesteps = 2048
+
+[[profiles.curriculum_fast.curriculum]]
+scenario_key = "defend_the_center"
+requested_timesteps = 2048
+
+[[profiles.curriculum_fast.curriculum]]
+scenario_key = "health_gathering"
+requested_timesteps = 2048
+
+[scenarios.basic]
+scenario_name = "basic.cfg"
+description = "Escenario base para validar el pipeline completo."
+
+[scenarios.defend_the_center]
+scenario_name = "defend_the_center.cfg"
+description = "Escenario reactivo centrado en punteria y giros rapidos."
+requested_timesteps = 250000
+checkpoint_frequency = 25000
+video_record_frequency = 25000
+
+[scenarios.defend_the_center.reward_shaping]
+scale = 1.0
+offset = 0.0
+clip_min = -1.0
+clip_max = 1.0
+
+[scenarios.deadly_corridor]
+scenario_name = "deadly_corridor.cfg"
+description = "Escenario mas complejo con navegacion, combate y recompensas esparsas."
+requested_timesteps = 300000
+checkpoint_frequency = 20000
+video_record_frequency = 20000
+video_length = 2500
+
+[scenarios.deadly_corridor.reward_shaping]
+scale = 0.1
+offset = 0.0
+clip_min = -1.0
+clip_max = 1.0
+
+[scenarios.health_gathering]
+scenario_name = "health_gathering.cfg"
+description = "Escenario de supervivencia con recompensa densa por mantenerse con vida."
+requested_timesteps = 150000
+checkpoint_frequency = 15000
+video_record_frequency = 15000
+
+[scenarios.health_gathering.reward_shaping]
+scale = 0.05
+offset = 0.0
+clip_min = -1.0
+clip_max = 2.0

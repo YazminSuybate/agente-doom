@@ -1,18 +1,33 @@
 # Agente Doom
 
-Proyecto de aprendizaje por refuerzo para entrenar y evaluar un agente en escenarios de ViZDoom usando Gymnasium, Stable-Baselines3 y `RecurrentPPO` con LSTM.
+Proyecto de aprendizaje por refuerzo para entrenar y evaluar un agente en escenarios de ViZDoom con `Gymnasium`, `Stable-Baselines3` y `RecurrentPPO`.
+
+## Cambios principales
+
+- La logica ahora esta separada por responsabilidades en `config`, `envs`, `models`, `services`, `utils` y `shared`.
+- Los perfiles y escenarios viven fuera del codigo en `configs/training_profiles.toml`.
+- El espacio de acciones ahora soporta combinaciones de botones y `no-op` mediante `MultiDiscrete`, en vez de limitar al agente a una sola tecla por paso.
+- El reward shaping es configurable por escenario sin modificar el wrapper del entorno.
+- Cada perfil puede fijar una `seed` reproducible y tambien sobrescribirse por CLI.
+- Cada checkpoint nuevo guarda un archivo `.json` con la configuracion usada para entrenarlo.
+- El entrenamiento reanuda automaticamente desde el ultimo checkpoint compatible, salvo que uses `--from-scratch`.
+- Cada corrida puede evaluar periodicamente y guardar `best_model` aparte del ultimo estado.
+- El entrenamiento ahora soporta `early stopping` por evaluaciones sin mejora.
+- El proyecto soporta perfiles de `curriculum training` con multiples etapas por escenario.
+- Existe un runner secuencial de sweeps para comparar combinaciones de hiperparametros.
+- Cada entrenamiento genera un reporte JSON en `artifacts/reports/` y mantiene un indice de corridas.
+- Existe una CLI unificada con subcomandos para entrenar, evaluar, listar perfiles, listar checkpoints e inspeccionar metadata.
+- Los artefactos generados ya no viven mezclados con el codigo: ahora se escriben en `artifacts/`.
+- El tooling del proyecto vive en `pyproject.toml` y se puede automatizar con `pre-commit`.
+- Se agregaron pruebas automatizadas para perfiles, metadata de checkpoints, reportes y smoke test del entorno.
 
 ## Requisitos
 
 - Windows x64.
-- Python 3.10 o superior. El proyecto fue probado localmente con Python 3.14.2.
-- El lanzador `py` disponible en PowerShell.
-
-No es necesario activar el entorno virtual con `Activate.ps1`. En Windows puede fallar por la politica de ejecucion de scripts; por eso los comandos de este README usan directamente el ejecutable del entorno virtual.
+- Python 3.12.
+- `py` disponible en PowerShell.
 
 ## Instalacion
-
-Desde PowerShell:
 
 ```powershell
 cd E:\agente-doom
@@ -21,174 +36,210 @@ py -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-## Ejecutar entrenamiento
+## Estructura
 
-Entrenamiento completo:
+```text
+src\
+  doom_agent\
+    cli\         Entradas de linea de comandos
+    config\      Carga tipada del catalogo TOML y rutas del proyecto
+    envs\        Wrapper Gymnasium, acciones y reward shaping
+    models\      Extractor CNN y fabrica del modelo PPO recurrente
+    services\    Casos de uso de entrenamiento y evaluacion
+    shared\      Tipos reutilizables
+    utils\       Checkpoints, archivos y metadata
+  train.py       Punto de entrada compatible hacia atras
+  evaluate.py    Punto de entrada compatible hacia atras
+configs\         Catalogo TOML de perfiles y escenarios
+tests\           Pruebas automatizadas
+data\scenarios\  Escenarios .cfg y .wad
+artifacts\       Checkpoints, TensorBoard, reportes y videos generados
+```
+
+## CLI Unificada
+
+Listar perfiles y escenarios:
 
 ```powershell
-cd E:\agente-doom
+.\.venv\Scripts\python.exe src\cli.py list-profiles
+```
+
+Listar checkpoints conocidos:
+
+```powershell
+.\.venv\Scripts\python.exe src\cli.py list-checkpoints --limit 10
+```
+
+Listar corridas registradas:
+
+```powershell
+.\.venv\Scripts\python.exe src\cli.py list-runs --limit 10
+```
+
+Inspeccionar metadata de un checkpoint:
+
+```powershell
+.\.venv\Scripts\python.exe src\cli.py inspect-checkpoint --checkpoint ppo_doom_recurrent_fast --select best
+```
+
+Ejecutar un sweep secuencial:
+
+```powershell
+.\.venv\Scripts\python.exe src\cli.py sweep --config fast --learning-rates 0.0001,0.0003 --n-steps-values 256,512 --batch-sizes 64 --seeds 42,43
+```
+
+## Entrenamiento
+
+Perfil por defecto:
+
+```powershell
 .\.venv\Scripts\python.exe src\train.py
 ```
 
-Entrenamiento rapido para pruebas:
+Perfil rapido:
 
 ```powershell
-cd E:\agente-doom
 .\.venv\Scripts\python.exe src\train.py --config fast
 ```
 
-Entrenamiento eficiente, recomendado para aprender mejor sin gastar tiempo en ventana ni video:
+Perfil rapido en otro escenario:
 
 ```powershell
-cd E:\agente-doom
+.\.venv\Scripts\python.exe src\train.py --config fast --scenario deadly_corridor
+```
+
+Entrenar un perfil con curriculum:
+
+```powershell
+.\.venv\Scripts\python.exe src\train.py --config curriculum_fast
+```
+
+Sobrescribir la `seed` del perfil:
+
+```powershell
+.\.venv\Scripts\python.exe src\train.py --config fast --seed 123
+```
+
+Forzar una corrida desde cero:
+
+```powershell
+.\.venv\Scripts\python.exe src\train.py --config fast --from-scratch
+```
+
+Reanudar desde un checkpoint explicito:
+
+```powershell
+.\.venv\Scripts\python.exe src\train.py --config fast --resume artifacts\checkpoints\ppo_doom_recurrent_fast.zip
+```
+
+Activar evaluacion periodica mas frecuente:
+
+```powershell
+.\.venv\Scripts\python.exe src\train.py --config fast --eval-freq 256 --eval-episodes 3
+```
+
+Activar o aprovechar early stopping desde el perfil:
+
+```powershell
+.\.venv\Scripts\python.exe src\train.py --config curriculum_fast --from-scratch
+```
+
+Perfil eficiente:
+
+```powershell
 .\.venv\Scripts\python.exe src\train.py --config efficient
 ```
 
-El entrenamiento usa las configuraciones definidas en `src\config.py`.
-
-Valores importantes:
-
-- `env_name`: escenario de ViZDoom a usar.
-- `total_timesteps`: cantidad total de pasos de entrenamiento.
-- `render`: muestra o no la ventana de ViZDoom.
-- `record`: guarda o no video durante entrenamiento.
-
-Por defecto se entrena con:
-
-```python
-"env_name": "basic.cfg"
-"total_timesteps": 500000
-"render": True
-"record": True
-```
-
-La configuracion rapida usa:
-
-```python
-"n_steps": 256
-"n_epochs": 3
-"total_timesteps": 10000
-"render": False
-"record": False
-```
-
-La configuracion eficiente usa:
-
-```python
-"n_steps": 1024
-"n_epochs": 5
-"total_timesteps": 100000
-"render": False
-"record": False
-```
-
-Tambien puedes sobrescribir los timesteps solo para una ejecucion:
+Sobrescribir timesteps solicitados:
 
 ```powershell
 .\.venv\Scripts\python.exe src\train.py --config fast --timesteps 256
 ```
 
-Por ejemplo, para probar la configuracion eficiente sin esperar el entrenamiento completo:
+Notas importantes:
+
+- `RecurrentPPO` entrena por bloques de `n_steps`, asi que el total efectivo puede ser mayor al solicitado.
+- El comando imprime ambos valores: `requested_timesteps` y `effective_timesteps`.
+- Los checkpoints finales se guardan en `artifacts\checkpoints\`.
+- Los checkpoints automaticos se guardan en `artifacts\checkpoints\auto\`.
+- El ultimo estado entrenado se guarda como `<checkpoint>.zip`.
+- El mejor modelo segun evaluacion periodica se guarda como `<checkpoint>_best.zip`.
+- Cada checkpoint nuevo genera un archivo `.json` con la metadata del entrenamiento.
+- Cada corrida genera un reporte en `artifacts\reports\`.
+- El indice acumulado de corridas vive en `artifacts\reports\index.json`.
+- Si usas `--scenario` distinto de `basic`, el nombre del checkpoint incluye un sufijo como `__deadly_corridor` para evitar colisiones.
+- Por defecto, una nueva ejecucion intenta continuar desde el ultimo checkpoint compatible del mismo perfil y escenario.
+- Si el perfil tiene `curriculum`, cada etapa se entrena secuencialmente y la siguiente reanuda desde el checkpoint final de la etapa previa.
+
+## Evaluacion
+
+Evaluar el checkpoint principal:
 
 ```powershell
-.\.venv\Scripts\python.exe src\train.py --config efficient --timesteps 1024
-```
-
-Al terminar, el modelo se guarda en:
-
-```text
-logs\checkpoints\ppo_doom_recurrent.zip
-```
-
-El entrenamiento rapido se guarda en:
-
-```text
-logs\checkpoints\ppo_doom_recurrent_fast.zip
-```
-
-El entrenamiento eficiente se guarda en:
-
-```text
-logs\checkpoints\ppo_doom_recurrent_efficient.zip
-```
-
-Tambien se generan logs de TensorBoard en `logs\` y videos en `data\videos\`.
-
-## Guardado durante entrenamiento
-
-`train.py` guarda el modelo al terminar normalmente y tambien intenta guardarlo si interrumpes con `Ctrl+C` o si ViZDoom se cierra.
-
-El ultimo progreso de cada perfil se guarda en:
-
-```text
-logs\checkpoints\ppo_doom_recurrent.zip
-logs\checkpoints\ppo_doom_recurrent_fast.zip
-logs\checkpoints\ppo_doom_recurrent_efficient.zip
-```
-
-Ademas, se crean checkpoints automaticos en:
-
-```text
-logs\checkpoints\auto\
-```
-
-Frecuencia de guardado automatico:
-
-```text
-default:   cada 50000 pasos
-fast:      cada 2000 pasos
-efficient: cada 10000 pasos
-```
-
-Si cierras la terminal de golpe, apagas la PC o matas el proceso, Python puede no alcanzar a ejecutar el guardado final. En ese caso usa el checkpoint automatico mas reciente de `logs\checkpoints\auto\`.
-
-## Ejecutar evaluacion
-
-Primero debe existir un modelo entrenado en:
-
-```text
-logs\checkpoints\ppo_doom_recurrent.zip
-```
-
-Luego ejecuta:
-
-```powershell
-cd E:\agente-doom
 .\.venv\Scripts\python.exe src\evaluate.py
 ```
 
-Para evaluar el checkpoint del entrenamiento rapido:
+Por defecto, si existe, la evaluacion intentara usar `<checkpoint>_best.zip`.
+
+Evaluar otro checkpoint:
 
 ```powershell
-cd E:\agente-doom
-.\.venv\Scripts\python.exe src\evaluate.py --checkpoint ppo_doom_recurrent_fast
+.\.venv\Scripts\python.exe src\evaluate.py --checkpoint ppo_doom_recurrent_fast --steps 500
 ```
 
-Para evaluar el checkpoint del entrenamiento eficiente:
+Forzar el ultimo estado entrenado en lugar del mejor:
 
 ```powershell
-cd E:\agente-doom
-.\.venv\Scripts\python.exe src\evaluate.py --checkpoint ppo_doom_recurrent_efficient
+.\.venv\Scripts\python.exe src\evaluate.py --config fast --select last
 ```
 
-La evaluacion carga el checkpoint y ejecuta el agente con `render=True`. Para salir, presiona `Ctrl+C`.
-
-## Ver TensorBoard
+Tambien puedes pasar una ruta directa:
 
 ```powershell
-cd E:\agente-doom
-.\.venv\Scripts\tensorboard.exe --logdir logs
+.\.venv\Scripts\python.exe src\evaluate.py --checkpoint artifacts\checkpoints\ppo_doom_recurrent_fast.zip
 ```
 
-Luego abre en el navegador la URL que muestre TensorBoard, normalmente:
+Evaluar un checkpoint pero forzando otro escenario:
 
-```text
-http://localhost:6006
+```powershell
+.\.venv\Scripts\python.exe src\evaluate.py --checkpoint ppo_doom_recurrent_fast --scenario defend_the_center
+```
+
+La evaluacion intenta usar la metadata del checkpoint para reconstruir el escenario y la configuracion correcta. Si el checkpoint es legado y no tiene metadata, usa el escenario del perfil `default` y trata de inferir el tipo de espacio de acciones.
+
+## TensorBoard
+
+```powershell
+.\.venv\Scripts\tensorboard.exe --logdir artifacts\tensorboard
+```
+
+## Pruebas
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+## Tipado
+
+```powershell
+.\.venv\Scripts\python.exe -m mypy
+```
+
+El proyecto usa `mypy` con reglas estrictas sobre `doom_agent`, `tests` y los wrappers legacy. La configuracion vive en `pyproject.toml`.
+
+## Lint
+
+```powershell
+.\.venv\Scripts\python.exe -m ruff check .
+```
+
+## Pre-commit
+
+```powershell
+.\.venv\Scripts\python.exe -m pre_commit install
 ```
 
 ## Escenarios disponibles
-
-Los escenarios estan en `data\scenarios\`:
 
 ```text
 basic.cfg
@@ -197,62 +248,24 @@ defend_the_center.cfg
 health_gathering.cfg
 ```
 
-Para cambiar de escenario, edita `env_name` en `src\config.py`:
+Para cambiar perfiles, escenarios o reward shaping sin tocar Python, edita `configs\training_profiles.toml`.
+Tambien puedes definir ahi configuraciones de `early_stopping` y listas de `curriculum`.
 
-```python
-"env_name": "defend_the_center.cfg"
-```
+## Artefactos generados
 
-## Prueba rapida de entorno
+El proyecto ignora por Git:
 
-Este comando valida que ViZDoom puede iniciar, resetear y ejecutar un paso:
+- `artifacts/`
+- `logs/`
+- `data/videos/`
+- `_vizdoom.ini`
 
-```powershell
-cd E:\agente-doom
-.\.venv\Scripts\python.exe -c "import sys; sys.path.insert(0, 'src'); from config import CONFIG, SCENARIOS_DIR, VIDEO_DIR, LOG_DIR; from environment import make_doom_env; cfg={**CONFIG, 'SCENARIOS_DIR': SCENARIOS_DIR, 'VIDEO_DIR': VIDEO_DIR, 'LOG_DIR': LOG_DIR, 'render': False}; env=make_doom_env(cfg); obs=env.reset(); print('reset ok', obs.shape); obs, rewards, dones, infos = env.step([0]); print('step ok', obs.shape, rewards, dones); env.close()"
-```
+Eso evita versionar videos, checkpoints, eventos de TensorBoard y archivos generados por ViZDoom.
 
-## Problemas comunes
+## CI
 
-### `python` no se reconoce como comando
+Hay un workflow en `.github/workflows/ci.yml` con tres jobs separados en Windows:
 
-Usa `py` para crear el entorno:
-
-```powershell
-py -m venv .venv
-```
-
-Despues usa siempre:
-
-```powershell
-.\.venv\Scripts\python.exe
-```
-
-### PowerShell bloquea `Activate.ps1`
-
-No necesitas activar el entorno. Ejecuta los comandos con la ruta completa:
-
-```powershell
-.\.venv\Scripts\python.exe src\train.py
-```
-
-### Falta `moviepy`
-
-`moviepy` es necesario porque el entrenamiento usa `VecVideoRecorder` para guardar videos. Ya esta incluido en `requirements.txt`.
-
-### Fallo instalando `ale-py`
-
-Este proyecto no necesita Atari/ALE. Por eso `requirements.txt` usa `stable-baselines3` sin el extra `[extra]`, evitando compilar `ale-py` en Windows.
-
-## Estructura principal
-
-```text
-src\config.py        Configuracion general
-src\environment.py   Wrapper Gymnasium para ViZDoom
-src\model.py         Modelo RecurrentPPO con extractor CNN
-src\train.py         Entrenamiento
-src\evaluate.py      Evaluacion del checkpoint
-data\scenarios\      Escenarios .cfg y .wad
-logs\                Logs y checkpoints generados
-data\videos\         Videos generados durante entrenamiento
-```
+- `lint`: instala dependencias y ejecuta `ruff`.
+- `typing`: instala dependencias y ejecuta `mypy`.
+- `tests`: instala dependencias y ejecuta la suite de pruebas.
